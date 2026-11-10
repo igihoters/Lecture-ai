@@ -150,7 +150,8 @@
               type="button"
               id="toggle-key-btn"
               title="Pokaż / ukryj klucz"
-              class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm p-1 z-10"
+              class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm p-2 z-50 bg-white"
+              onclick="togglePasswordVisibility(event)"
             >
               👁️
             </button>
@@ -454,12 +455,14 @@
       clearKeyBtn.classList.remove('hidden');
     });
 
-    toggleKeyBtn.addEventListener('click', (event) => {
+    // Zmieniona funkcja odsłaniania hasła podpięta pod przycisk 'onclick' 
+    function togglePasswordVisibility(event) {
       event.preventDefault();
+      event.stopPropagation();
       const isPassword = apiKeyInput.type === 'password';
       apiKeyInput.type = isPassword ? 'text' : 'password';
       toggleKeyBtn.textContent = isPassword ? '🙈' : '👁️';
-    });
+    }
 
     clearKeyBtn.addEventListener('click', () => {
       localStorage.removeItem(STORAGE_KEY_API);
@@ -720,6 +723,7 @@ Przygotuj **Kompleksową, przejrzystą notatkę akademicką**:
 4. **Informacje organizacyjne** – jeśli wykładowca mówił o kolokwium, egzaminie, zadaniach domowych lub literaturze, wypunktuj to w osobnej sekcji.`;
       }
 
+      // Poprawiono łączenie ciągów z zachowaniem nowej linii
       return `Jesteś doświadczonym asystentem akademickim. ${multiPartNotice}
 ${pdfNotice}${contextLine}
 Pomiń dygresje niezwiązane z tematem oraz szumy tła. Pisz po polsku, profesjonalnie, czytelnie i konkretnie, używając formatowania Markdown (nagłówki, wypunktowania, pogrubienia).
@@ -770,8 +774,9 @@ ${styleInstructions}`;
         }
 
         const data = await resp.json();
-        const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('
-');
+        // Naprawiony kod łączenia ciągów z wykorzystaniem literału znakowego
+        const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('\n');
+        
         if (!text) {
           lastError = new Error('Model AI zwrócił pustą odpowiedź. Spróbuj ponownie.');
           continue;
