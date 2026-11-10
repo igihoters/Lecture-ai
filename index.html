@@ -255,8 +255,8 @@
             id="model-select"
             class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-blue-600 outline-none"
           >
-            <option value="gemini-2.5-flash">Gemini 2.5 Flash (Szybki – zalecany)</option>
-            <option value="gemini-2.5-pro">Gemini 2.5 Pro (Bardziej wnikliwy)</option>
+            <option value="gemini-3.8-flash">Gemini 3.8 Flash (Szybki – zalecany)</option>
+            <option value="gemini-4-argon">Gemini 4 Argon (Najbardziej wnikliwy)</option>
           </select>
         </div>
       </div>
@@ -455,7 +455,6 @@
       clearKeyBtn.classList.remove('hidden');
     });
 
-    // Zmieniona funkcja odsłaniania hasła podpięta pod przycisk 'onclick' 
     function togglePasswordVisibility(event) {
       event.preventDefault();
       event.stopPropagation();
@@ -723,7 +722,6 @@ Przygotuj **Kompleksową, przejrzystą notatkę akademicką**:
 4. **Informacje organizacyjne** – jeśli wykładowca mówił o kolokwium, egzaminie, zadaniach domowych lub literaturze, wypunktuj to w osobnej sekcji.`;
       }
 
-      // Poprawiono łączenie ciągów z zachowaniem nowej linii
       return `Jesteś doświadczonym asystentem akademickim. ${multiPartNotice}
 ${pdfNotice}${contextLine}
 Pomiń dygresje niezwiązane z tematem oraz szumy tła. Pisz po polsku, profesjonalnie, czytelnie i konkretnie, używając formatowania Markdown (nagłówki, wypunktowania, pogrubienia).
@@ -731,7 +729,7 @@ ${styleInstructions}`;
     }
 
     async function generateLectureSummary(uploadedFiles, apiKey, audioCount, hasPdf) {
-      const selectedModel = modelSelect.value || 'gemini-2.5-flash';
+      const selectedModel = modelSelect.value || 'gemini-3.8-flash';
       const style = summaryStyleSelect.value;
       const customContext = customContextInput.value.trim();
 
@@ -752,7 +750,8 @@ ${styleInstructions}`;
         }
       };
 
-      const modelsToTry = [selectedModel, 'gemini-2.5-flash', 'gemini-1.5-flash'];
+      // Zaktualizowano do najnowszych modeli (generacja 3 i 4)
+      const modelsToTry = [selectedModel, 'gemini-3.8-flash', 'gemini-3.5-flash-lite'];
       const uniqueModels = [...new Set(modelsToTry)];
 
       let lastError = null;
@@ -774,7 +773,6 @@ ${styleInstructions}`;
         }
 
         const data = await resp.json();
-        // Naprawiony kod łączenia ciągów z wykorzystaniem literału znakowego
         const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('\n');
         
         if (!text) {
