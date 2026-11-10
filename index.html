@@ -115,7 +115,7 @@
 
   <main class="max-w-2xl mx-auto px-4 mt-6 space-y-5">
 
-    <!-- KROK 1: Formularz klucza API (Podplan A: obsługa menedżera haseł + localStorage) -->
+    <!-- KROK 1: Formularz klucza API -->
     <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 no-print">
       <div class="flex items-center justify-between mb-2">
         <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
@@ -132,7 +132,6 @@
       </p>
 
       <form id="api-key-form" action="#" method="post" autocomplete="on" class="space-y-3">
-        <!-- Ukryte pole username wymagane przez iOS Keychain / Google Password Manager -->
         <input type="text" name="username" value="Gemini_API_User" autocomplete="username" class="hidden" aria-hidden="true" />
 
         <div class="flex gap-2">
@@ -191,12 +190,12 @@
             Dotknij tutaj, aby wybrać plik(i) audio z telefonu
           </span>
           <span class="text-xs text-slate-500 mt-1">
-            Obsługiwane formaty dyktafonów: .m4a, .mp3, .wav, .aac, .ogg, .flac, .mp4 (możesz wybrać np. 2 części wykładu naraz)
+            Obsługiwane formaty dyktafonów: .m4a, .mp3, .wav, .aac, .ogg, .flac (możesz wybrać np. 2 części wykładu naraz)
           </span>
           <input
             id="audio-input"
             type="file"
-            accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.flac,.opus,.amr,.3gp,.mp4"
+            accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.flac,.opus,.amr,.3gp"
             multiple
             class="hidden"
           />
@@ -204,8 +203,13 @@
 
         <!-- Lista wybranych plików audio -->
         <div id="selected-files-list" class="mt-3 space-y-1.5 hidden"></div>
+
+        <!-- Ostrzeżenie jeśli wykryto plik wideo -->
+        <div id="video-warning" class="hidden mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
+          ⚠️ <strong>Uwaga:</strong> Wybrany plik wygląda na wideo. Wideo zużywa ok. 8x więcej tokenów niż samo audio i na darmowym koncie Google może wywołać błąd limitu (429). Do wykładów najlepiej używać samych nagrań dźwiękowych (`.m4a`, `.mp3`).
+        </div>
       </div>
-      
+
       <!-- Strefa wyboru pliku PDF z prezentacją -->
       <div>
         <label
@@ -217,7 +221,7 @@
             Dotknij tutaj, aby wybrać plik PDF z prezentacją do wykładu (Opcjonalnie)
           </span>
           <span class="text-xs text-slate-500 mt-1">
-            Maksymalny rozmiar pliku 20MB. Ai powiąże mowę ze slajdami.
+            AI powiąże wypowiedzi wykładowcy z treścią slajdów.
           </span>
           <input
             id="pdf-input"
@@ -249,13 +253,15 @@
 
         <div>
           <label for="model-select" class="block text-xs font-semibold text-slate-700 mb-1">
-            Model AI
+            Model AI (z automatycznym zapasem)
           </label>
           <select
             id="model-select"
             class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-blue-600 outline-none"
           >
-            <option value="gemini-3.8-flash">Gemini 3.8 Flash (Szybki – zalecany)</option>
+            <option value="gemini-3.8-flash">Gemini 3.8 Flash (Zalecany)</option>
+            <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite (Najwyższe limity)</option>
+            <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite (Lekki, stabilny)</option>
             <option value="gemini-4-argon">Gemini 4 Argon (Najbardziej wnikliwy)</option>
           </select>
         </div>
@@ -283,7 +289,7 @@
       </button>
     </section>
 
-    <!-- KROK 3: Status przetwarzania (Podplan D: Maszyna stanów i postęp) -->
+    <!-- KROK 3: Status przetwarzania -->
     <section id="progress-section" class="hidden bg-white rounded-2xl shadow-sm border border-blue-200 p-5 no-print">
       <div class="flex items-center justify-between mb-3">
         <h3 class="text-sm font-bold text-blue-900 flex items-center gap-2">
@@ -326,9 +332,12 @@
     <!-- KROK 4: Gotowa notatka i eksport -->
     <section id="result-section" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-7">
       <div class="flex flex-wrap items-center justify-between gap-2 pb-4 mb-4 border-b border-slate-200 no-print">
-        <h2 class="text-base font-bold text-emerald-700 flex items-center gap-1.5">
-          <span>✅</span> Gotowa notatka z wykładu
-        </h2>
+        <div>
+          <h2 class="text-base font-bold text-emerald-700 flex items-center gap-1.5">
+            <span>✅</span> Gotowa notatka z wykładu
+          </h2>
+          <p id="used-model-badge" class="text-[11px] text-slate-400 mt-0.5"></p>
+        </div>
         <div class="flex flex-wrap gap-2">
           <button
             type="button"
@@ -390,7 +399,8 @@
 
     const audioInput = document.getElementById('audio-input');
     const selectedFilesList = document.getElementById('selected-files-list');
-    
+    const videoWarning = document.getElementById('video-warning');
+
     const pdfInput = document.getElementById('pdf-input');
     const selectedPdfList = document.getElementById('selected-pdf-list');
 
@@ -414,6 +424,7 @@
     const errorMessage = document.getElementById('error-message');
 
     const resultSection = document.getElementById('result-section');
+    const usedModelBadge = document.getElementById('used-model-badge');
     const summaryOutput = document.getElementById('summary-output');
     const copyBtn = document.getElementById('copy-btn');
     const downloadMdBtn = document.getElementById('download-md-btn');
@@ -433,7 +444,7 @@
     let wakeLockSentinel = null;
 
     // =========================================================================
-    // PODPLAN A: OBSŁUGA KLUCZA API I MENEDŻERA HASEŁ
+    // OBSŁUGA KLUCZA API I MENEDŻERA HASEŁ
     // =========================================================================
     function loadSavedApiKey() {
       const savedKey = localStorage.getItem(STORAGE_KEY_API);
@@ -472,13 +483,13 @@
     });
 
     // =========================================================================
-    // WYBÓR PLIKÓW AUDIO I NORMALIZACJA FORMATÓW Z DYKTAFONÓW
+    // WYBÓR PLIKÓW AUDIO / PDF I NORMALIZACJA FORMATÓW
     // =========================================================================
     function getNormalizedMimeType(file) {
       const ext = (file.name.split('.').pop() || '').toLowerCase();
       const map = {
         m4a: 'audio/mp4',
-        mp4: 'audio/mp4',
+        mp4: file.type && file.type.startsWith('video/') ? 'video/mp4' : 'audio/mp4',
         mp3: 'audio/mp3',
         mpeg: 'audio/mpeg',
         wav: 'audio/wav',
@@ -492,7 +503,7 @@
         pdf: 'application/pdf'
       };
       if (map[ext]) return map[ext];
-      if (file.type && file.type.startsWith('audio/')) {
+      if (file.type && (file.type.startsWith('audio/') || file.type.startsWith('video/'))) {
         if (file.type === 'audio/x-m4a' || file.type === 'audio/m4a') return 'audio/mp4';
         if (file.type === 'audio/x-wav') return 'audio/wav';
         return file.type;
@@ -510,6 +521,7 @@
       if (files.length === 0) {
         selectedFilesList.classList.add('hidden');
         selectedFilesList.innerHTML = '';
+        videoWarning.classList.add('hidden');
         return;
       }
       selectedFilesList.classList.remove('hidden');
@@ -521,8 +533,18 @@
           <span class="text-slate-500 shrink-0 font-mono">${formatSize(file.size)}</span>
         </div>
       `).join('');
+
+      const hasVideo = files.some((f) =>
+        (f.type && f.type.startsWith('video/')) ||
+        /\.(mp4|mov|avi|mkv|wmv)$/i.test(f.name)
+      );
+      if (hasVideo) {
+        videoWarning.classList.remove('hidden');
+      } else {
+        videoWarning.classList.add('hidden');
+      }
     });
-    
+
     pdfInput.addEventListener('change', () => {
       const files = Array.from(pdfInput.files || []);
       if (files.length === 0) {
@@ -531,7 +553,7 @@
         return;
       }
       selectedPdfList.classList.remove('hidden');
-      selectedPdfList.innerHTML = files.map((file, idx) => `
+      selectedPdfList.innerHTML = files.map((file) => `
         <div class="flex items-center justify-between bg-indigo-50 rounded-xl px-3.5 py-2 text-xs">
           <span class="font-semibold text-indigo-700 truncate pr-3">
             PDF: ${file.name}
@@ -542,7 +564,7 @@
     });
 
     // =========================================================================
-    // PODPLAN B: PRZESYŁANIE DUŻYCH PLIKÓW (GEMINI FILE API + POLLING)
+    // PRZESYŁANIE DUŻYCH PLIKÓW (GEMINI FILE API + POLLING)
     // =========================================================================
     async function uploadSingleFileToGemini(file, apiKey, fileIndex, totalFiles) {
       const mimeType = getNormalizedMimeType(file);
@@ -550,7 +572,6 @@
 
       updateProgress(1, `Wysyłanie pliku ${label} (${formatSize(file.size)})...`);
 
-      // Próba 1: Protokół Resumable Upload (strumieniowanie binarne prosto z dysku)
       try {
         const startUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${encodeURIComponent(apiKey)}`;
         const initResponse = await fetch(startUrl, {
@@ -597,29 +618,18 @@
           }
         }
       } catch (resumableErr) {
-        // Jeśli błąd dotyczy autoryzacji (np. zły klucz API), przerywamy od razu
         if (resumableErr.isAuthError) throw resumableErr;
         console.warn('Przełączanie na tryb Multipart Blob Upload:', resumableErr);
       }
 
-      // Próba 2 (Automatyczny Fallback): Zero-copy Multipart Upload bez użycia RAM (Base64)
       const boundary = '-------GeminiMultipartBoundary' + Date.now();
       const metadata = JSON.stringify({ file: { display_name: file.name } });
 
       const multipartBlob = new Blob([
-        `--${boundary}
-Content-Type: application/json; charset=UTF-8
-
-${metadata}
-`,
-        `--${boundary}
-Content-Type: ${mimeType}
-
-`,
+        `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`,
+        `--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`,
         file,
-        `
---${boundary}--
-`
+        `\r\n--${boundary}--\r\n`
       ]);
 
       const fallbackUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=multipart&key=${encodeURIComponent(apiKey)}`;
@@ -682,20 +692,19 @@ Content-Type: ${mimeType}
     }
 
     // =========================================================================
-    // PODPLAN C: BUDOWANIE PROMPTU I GENEROWANIE NOTATKI
+    // BUDOWANIE PROMPTU I GENEROWANIE NOTATKI Z AUTOMATYCZNYM FALLBACKIEM 429/503
     // =========================================================================
     function buildLecturePrompt(style, customContext, audioCount, hasPdf) {
       const multiPartNotice = audioCount > 1
         ? `Wgrano ${audioCount} części tego samego wykładu audio w kolejności chronologicznej. Połącz je w jedną spójną, logiczną całość.`
         : `Przeanalizuj dokładnie całe wgrane nagranie wykładu.`;
-        
-      const pdfNotice = hasPdf 
-        ? `Oprócz pliku(ów) dźwiękowych dostarczam plik PDF z prezentacją do tego wykładu. Twoim zadaniem jest zintegrować wiedzę mówioną przez wykładowcę z treścią slajdów. Priorytetem jest mowa, ale wykorzystaj prezentację do usystematyzowania struktury i upewnienia się, że najważniejsze punkty wizualne (także te, o których wykładowca wspomniał tylko pobieżnie) znajdą się w notatkach. Wskaż w notatce, które pojęcia były omawiane w obu mediach, z powiązaniem konkretnych myśli z nagrania audio.`
+
+      const pdfNotice = hasPdf
+        ? `Oprócz nagrania wykładu dostarczam plik PDF z prezentacją do tego wykładu. Zintegruj wiedzę mówioną przez wykładowcę z treścią slajdów. Priorytetem jest mowa, ale wykorzystaj prezentację do uporządkowania struktury i upewnienia się, że najważniejsze punkty ze slajdów znajdą się w notatce.`
         : '';
 
       const contextLine = customContext
-        ? `
-Dodatkowy kontekst od studenta: "${customContext}".`
+        ? `\nDodatkowy kontekst od studenta: "${customContext}".`
         : '';
 
       let styleInstructions = '';
@@ -703,7 +712,7 @@ Dodatkowy kontekst od studenta: "${customContext}".`
         styleInstructions = `
 Przygotuj notatkę w formie **Pigułki przed kolokwium / egzaminem**:
 1. **Esencja wykładu (TL;DR)** – 3–5 najważniejszych wniosków.
-2. **Kluczowe pojęcia i definicje** – tabela lub lista "Pojęcie -> Krótka, precyzyjna definicja".
+2. **Kluczowe pojęcia i definicje** – lista "Pojęcie -> Krótka, precyzyjna definicja".
 3. **Pytania egzaminacyjne i odpowiedzi (Q&A)** – ułóż 8–12 najbardziej prawdopodobnych pytań z tego materiału wraz z wyczerpującymi odpowiedziami.
 4. **Sprawy organizacyjne** – jeśli wykładowca wspomniał o terminach, literaturze, punktacji lub wymaganiach na zaliczenie, wypisz je wyraźnie na końcu.`;
       } else if (style === 'detailed') {
@@ -722,10 +731,7 @@ Przygotuj **Kompleksową, przejrzystą notatkę akademicką**:
 4. **Informacje organizacyjne** – jeśli wykładowca mówił o kolokwium, egzaminie, zadaniach domowych lub literaturze, wypunktuj to w osobnej sekcji.`;
       }
 
-      return `Jesteś doświadczonym asystentem akademickim. ${multiPartNotice}
-${pdfNotice}${contextLine}
-Pomiń dygresje niezwiązane z tematem oraz szumy tła. Pisz po polsku, profesjonalnie, czytelnie i konkretnie, używając formatowania Markdown (nagłówki, wypunktowania, pogrubienia).
-${styleInstructions}`;
+      return `Jesteś doświadczonym asystentem akademickim. ${multiPartNotice}\n${pdfNotice}${contextLine}\nPomiń dygresje niezwiązane z tematem oraz szumy tła. Pisz po polsku, profesjonalnie, czytelnie i konkretnie, używając formatowania Markdown (nagłówki, wypunktowania, pogrubienia).\n${styleInstructions}`;
     }
 
     async function generateLectureSummary(uploadedFiles, apiKey, audioCount, hasPdf) {
@@ -750,12 +756,15 @@ ${styleInstructions}`;
         }
       };
 
-      // Zaktualizowano do najnowszych modeli (generacja 3 i 4)
-      const modelsToTry = [selectedModel, 'gemini-3.8-flash', 'gemini-3.5-flash-lite'];
+      // Kolejka modeli: wybrany -> 3.8 Flash -> 3.5 Flash-Lite -> 2.5 Flash-Lite
+      const modelsToTry = [selectedModel, 'gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash-lite'];
       const uniqueModels = [...new Set(modelsToTry)];
 
       let lastError = null;
-      for (const modelName of uniqueModels) {
+      for (let i = 0; i < uniqueModels.length; i++) {
+        const modelName = uniqueModels[i];
+        const isLastModel = i === uniqueModels.length - 1;
+
         updateProgress(3, `Generowanie podsumowania przez model ${modelName}...`);
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
@@ -766,27 +775,31 @@ ${styleInstructions}`;
         });
 
         if (!resp.ok) {
-          if (resp.status === 404 && modelName !== uniqueModels[uniqueModels.length - 1]) {
+          // Automatyczny przeskok na model Flash-Lite przy 429 (limit), 503 (przeciążenie) lub 404
+          if ((resp.status === 429 || resp.status === 503 || resp.status === 404) && !isLastModel) {
+            console.warn(`Model ${modelName} zwrócił HTTP ${resp.status}. Przełączam na kolejny model...`);
+            updateProgress(3, `Model ${modelName} chwilowo zajęty (${resp.status}), przełączam na ${uniqueModels[i + 1]}...`);
+            await new Promise((r) => setTimeout(r, 1500));
             continue;
           }
-          await handleHttpError(resp, 'generowania podsumowania przez AI');
+          await handleHttpError(resp, `generowania podsumowania przez AI (${modelName})`);
         }
 
         const data = await resp.json();
         const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('\n');
-        
+
         if (!text) {
           lastError = new Error('Model AI zwrócił pustą odpowiedź. Spróbuj ponownie.');
           continue;
         }
-        return text;
+        return { text, modelUsed: modelName };
       }
 
       throw lastError || new Error('Nie udało się wygenerować podsumowania.');
     }
 
     // =========================================================================
-    // PODPLAN D: ZARZĄDZANIE STANEM UI, WAKE LOCK ORAZ OBSŁUGA BŁĘDÓW
+    // ZARZĄDZANIE STANEM UI, WAKE LOCK ORAZ OBSŁUGA BŁĘDÓW
     // =========================================================================
     function updateProgress(stepNumber, detailText) {
       progressSection.classList.remove('hidden');
@@ -865,7 +878,12 @@ ${styleInstructions}`;
       }
       if (response.status === 429) {
         throw new Error(
-          'Przekroczono darmowy limit zapytań na minutę w Google Gemini API (Kod 429). Odczekaj około 60 sekund i spróbuj ponownie.'
+          `Przekroczono darmowy limit zapytań lub tokenów na minutę w Google Gemini API (Kod 429). Odczekaj pełną minutę (60 sek.) i spróbuj ponownie – jeśli wgrywasz plik wideo, zamień go na samo nagranie dźwiękowe (audio). Szczegóły Google: ${details}`
+        );
+      }
+      if (response.status === 503) {
+        throw new Error(
+          `Serwery Google są w tej chwili chwilowo przeciążone (Kod 503 Service Unavailable). Odczekaj kilkanaście sekund i kliknij przycisk ponownie. Szczegóły: ${details}`
         );
       }
       throw new Error(
@@ -888,13 +906,12 @@ ${styleInstructions}`;
 
       const audioFiles = Array.from(audioInput.files || []);
       const pdfFiles = Array.from(pdfInput.files || []);
-      
+
       if (audioFiles.length === 0) {
         showError('Wybierz przynajmniej jeden plik audio z nagraniem wykładu w Kroku 2.');
         return;
       }
 
-      // Automatyczny zapis klucza w localStorage
       localStorage.setItem(STORAGE_KEY_API, apiKey);
       keyStatus.textContent = '✅ Klucz API zapisany w przeglądarce.';
       keyStatus.className = 'text-emerald-600 font-medium';
@@ -922,12 +939,17 @@ ${styleInstructions}`;
         }
 
         // 3. Wygenerowanie podsumowania
-        const markdownResult = await generateLectureSummary(uploadedFiles, apiKey, audioFiles.length, hasPdf);
+        const { text: markdownResult, modelUsed } = await generateLectureSummary(
+          uploadedFiles,
+          apiKey,
+          audioFiles.length,
+          hasPdf
+        );
 
         // 4. Wyświetlenie wyniku i zapis w historii lokalnej
         updateProgress(4, 'Podsumowanie wykładu jest gotowe!');
-        renderSummary(markdownResult);
-        saveToHistory(allFiles.map((f) => f.name).join(' + '), markdownResult);
+        renderSummary(markdownResult, modelUsed);
+        saveToHistory(allFiles.map((f) => f.name).join(' + '), markdownResult, modelUsed);
       } catch (err) {
         console.error(err);
         if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
@@ -938,7 +960,6 @@ ${styleInstructions}`;
           showError(err.message || 'Wystąpił nieoczekiwany błąd podczas przetwarzania danych.');
         }
       } finally {
-        // Czyszczenie plików z serwerów Google (Podplan C)
         for (const fileMeta of uploadedFiles) {
           await deleteFileFromGemini(fileMeta, apiKey);
         }
@@ -954,8 +975,9 @@ ${styleInstructions}`;
       progressSection.classList.add('hidden');
     }
 
-    function renderSummary(markdownText) {
+    function renderSummary(markdownText, modelUsed = '') {
       currentRawMarkdown = markdownText;
+      usedModelBadge.textContent = modelUsed ? `Wygenerowano przy użyciu modelu: ${modelUsed}` : '';
       summaryOutput.innerHTML = marked.parse(markdownText);
       resultSection.classList.remove('hidden');
       resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1002,14 +1024,15 @@ ${styleInstructions}`;
       window.print();
     });
 
-    function saveToHistory(fileNames, markdown) {
+    function saveToHistory(fileNames, markdown, modelUsed = '') {
       try {
         const existing = JSON.parse(localStorage.getItem(STORAGE_KEY_HISTORY) || '[]');
         const newEntry = {
           id: Date.now(),
           date: new Date().toLocaleString('pl-PL'),
           title: fileNames,
-          markdown
+          markdown,
+          modelUsed
         };
         const updated = [newEntry, ...existing].slice(0, 5);
         localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(updated));
@@ -1045,7 +1068,7 @@ ${styleInstructions}`;
           btn.addEventListener('click', () => {
             const id = Number(btn.getAttribute('data-id'));
             const found = list.find((x) => x.id === id);
-            if (found) renderSummary(found.markdown);
+            if (found) renderSummary(found.markdown, found.modelUsed || '');
           });
         });
       } catch (e) {}
@@ -1056,7 +1079,6 @@ ${styleInstructions}`;
       renderHistory();
     });
 
-    // Inicjalizacja przy starcie strony
     loadSavedApiKey();
     renderHistory();
   </script>
